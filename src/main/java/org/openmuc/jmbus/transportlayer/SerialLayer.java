@@ -9,26 +9,31 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
-import org.openmuc.jrxtx.SerialPort;
-import org.openmuc.jrxtx.SerialPortBuilder;
+import com.fazecast.jSerialComm.SerialPort;
 
 class SerialLayer implements TransportLayer {
-    private final SerialPortBuilder serialPortBuilder;
+    private final SerialBuilder serialPortBuilder;
     private final int timeout;
 
     private DataOutputStream os;
     private DataInputStream is;
     private SerialPort serialPort;
 
-    public SerialLayer(int timeout, SerialPortBuilder serialPortBuilder) {
+    public SerialLayer(int timeout, SerialBuilder serialPortBuilder) {
         this.serialPortBuilder = serialPortBuilder;
         this.timeout = timeout;
     }
 
     @Override
     public void open() throws IOException {
-        serialPort = serialPortBuilder.build();
-        serialPort.setSerialPortTimeout(timeout);
+        serialPort = SerialPort.getCommPort(serialPortBuilder.getSerialPortName()); 
+
+        serialPort.setComPortParameters(serialPortBuilder.getBaudrate(), serialPortBuilder.getDataBits(), 
+                serialPortBuilder.getStopBits(), serialPortBuilder.getParity()); // Set your parameters
+        serialPort.setFlowControl(SerialPort.FLOW_CONTROL_DISABLED);
+        serialPort.openPort();
+        serialPort.setComPortTimeouts(SerialPort.TIMEOUT_READ_BLOCKING | SerialPort.TIMEOUT_WRITE_BLOCKING, timeout, timeout);
+
 
         os = new DataOutputStream(serialPort.getOutputStream());
         is = new DataInputStream(serialPort.getInputStream());
@@ -46,14 +51,11 @@ class SerialLayer implements TransportLayer {
 
     @Override
     public void close() {
-        if (serialPort == null || serialPort.isClosed()) {
+        if (serialPort == null || !serialPort.isOpen()) {
             return;
         }
-        try {
-            serialPort.close();
-        } catch (IOException e) {
-            // ignore
-        }
+        serialPort.closePort();
+
     }
 
     @Override
@@ -63,12 +65,13 @@ class SerialLayer implements TransportLayer {
 
     @Override
     public void setTimeout(int timeout) throws IOException {
-        serialPort.setSerialPortTimeout(timeout);
+            serialPort.setComPortTimeouts(SerialPort.TIMEOUT_READ_BLOCKING | SerialPort.TIMEOUT_WRITE_BLOCKING, timeout, timeout);
+
     }
 
     @Override
     public int getTimeout() {
-        return serialPort.getSerialPortTimeout();
+        return serialPort.getReadTimeout();
     }
 
 }
